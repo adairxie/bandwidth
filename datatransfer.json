@@ -1,0 +1,4 @@
+{
+    "es_api": "http://172.16.100.44:9201",
+    "log_file": "error.log"
+}
