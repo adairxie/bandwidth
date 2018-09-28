@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"sync/atomic"
 	"time"
@@ -91,16 +90,46 @@ func scrollParallel(client *elastic.Client, last time.Time, current time.Time) {
 
 	log.WithFields(log.Fields{"start": left, "stop": right, "count": atomic.LoadUint64(&count)}).Info("es search timestamp range")
 
-	index := fmt.Sprintf("waf-%s", last.Format("2006-01-02"))
+	index := fmt.Sprintf("nginx-%s", last.Format("2006-01-02"))
 	go func(index string) {
 		// Initialize scroller, Just don't call Do yet.
 		query := elastic.NewBoolQuery().Filter(
 			elastic.NewRangeQuery("Timestamp").Gte(left).Lt(right),
 		)
 
-    search := client.Search().Index(index).Query(query).Size(0)
-    aggHttpHost := elastic.NewTermsAggregation().Field("http_host").Size(10000).OrderByCountDesc()
-    search = search.Aggregation("agg_httpHost", aggHttpHost)
+		search := client.Search().Index(index).Query(query).Size(0)
+		aggHTTPHost := elastic.NewTermsAggregation().Field("http_host").Size(10000).OrderByCountDesc()
+		sumRequestLength := elastic.NewSumAggregation().Field("request_length")
+		sumUpstreamResponseLength := elastic.NewSumAggregation().Field("upstream_response_length")
+		aggHTTPHost = aggHTTPHost.SubAggregation("requestLength", sumRequestLength).SubAggregation("upstreamResponseLength", sumUpstreamResponseLength)
+		search = search.Aggregation("agg_httpHost", aggHTTPHost)
 
+		res, err := search.Do(context.Background())
+		if err != nil {
+			log.Error("search elasticsearch failed:" + err.Error())
+			return
+		}
+		if res.Hits.TotalHits > 0 {
+			agg, found := res.Aggregations.Terms("agg_httpHost")
+			if !found {
+				log.Error("not found a terms aggregation called agg_httpHost")
+				return
+			}
+
+			for _, recordBucket := range agg.Buckets {
+				host := recordBucket.Key
+				fmt.Println(host)
+
+				requestLength, found := recordBucket.Sum("requestLength")
+				if found {
+					fmt.Println(*requestLength.Value)
+				}
+
+				upstreamResponseLength, found := recordBucket.Sum("upstreamResponseLength")
+				if found {
+					fmt.Println(*upstreamResponseLength.Value)
+				}
+			}
+		}
 	}(index)
 }
