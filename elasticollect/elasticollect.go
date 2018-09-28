@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"bandwidth/redis"
 	"github.com/olivere/elastic"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
@@ -76,7 +77,7 @@ func pushDataTicker(client *elastic.Client) {
 	//lastTime = lastMonthDay()
 	scrollParallel(client, lastTime, time.Now())
 
-	ticker := time.NewTicker(time.Minute * 2)
+	ticker := time.NewTicker(time.Minute * 1)
 	for currentTime := range ticker.C {
 		scrollParallel(client, lastTime, currentTime)
 	}
@@ -117,18 +118,23 @@ func scrollParallel(client *elastic.Client, last time.Time, current time.Time) {
 			}
 
 			for _, recordBucket := range agg.Buckets {
-				host := recordBucket.Key
-				fmt.Println(host)
+				host := recordBucket.Key.(string)
 
-				requestLength, found := recordBucket.Sum("requestLength")
-				if found {
-					fmt.Println(*requestLength.Value)
+				var in, out float64
+				requestLength, _ := recordBucket.Sum("requestLength")
+				if requestLength != nil {
+					in = *requestLength.Value
 				}
 
-				upstreamResponseLength, found := recordBucket.Sum("upstreamResponseLength")
-				if found {
-					fmt.Println(*upstreamResponseLength.Value)
+				upstreamResponseLength, _ := recordBucket.Sum("upstreamResponseLength")
+				if upstreamResponseLength != nil {
+					out = *upstreamResponseLength.Value
 				}
+
+				redis.Hset(host, "bandwidth_in_current", fmt.Sprintf("%d", int(in)))
+				redis.Hset(host, "bandwidth_out_current", fmt.Sprintf("%d", int(out)))
+				redis.Hset(host, "bandwidth_total_current", fmt.Sprintf("%d", int(in+out)))
+                redis.Expire(host, 60)
 			}
 		}
 	}(index)

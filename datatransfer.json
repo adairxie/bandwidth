@@ -2,7 +2,7 @@
     "redis_data": {
         "host": "127.0.0.1",
         "port":6379,
-        "password": "123",
+        "password": "foobared",
         "database":0
     },
     "es_api": "http://172.16.100.44:9201",

@@ -34,6 +34,17 @@ func Get(key string) ([]byte, error) {
 	}
 }
 
+//-------------------------------------Expire(超时)操作-------------------------------------------------
+func Expire(key string, timeout int64) (int64, error) {
+	args := []interface{}{key, timeout}
+	result, err := redis_do("EXPIRE", args...)
+	if err == nil {
+		return redis.Int64(result, err)
+	} else {
+		return 0, err
+	}
+}
+
 //-------------------------------------Hash(哈希表)操作-------------------------------------------------
 
 func Hset(key string, hkey string, value string) (int64, error) {
