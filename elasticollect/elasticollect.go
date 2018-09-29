@@ -8,7 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"bandwidth/redis"
+	//"bandwidth/redis"
 	"github.com/olivere/elastic"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
@@ -131,10 +131,12 @@ func scrollParallel(client *elastic.Client, last time.Time, current time.Time) {
 					out = *upstreamResponseLength.Value
 				}
 
-				redis.Hset(host, "bandwidth_in_current", fmt.Sprintf("%d", int(in)))
-				redis.Hset(host, "bandwidth_out_current", fmt.Sprintf("%d", int(out)))
-				redis.Hset(host, "bandwidth_total_current", fmt.Sprintf("%d", int(in+out)))
-                redis.Expire(host, 60)
+                fmt.Printf("%s, %f, %f, ")
+
+				//redis.Hset(host, "bandwidth_in_current", fmt.Sprintf("%d", int(in)))
+				//redis.Hset(host, "bandwidth_out_current", fmt.Sprintf("%d", int(out)))
+				//redis.Hset(host, "bandwidth_total_current", fmt.Sprintf("%d", int(in+out)))
+                //redis.Expire(host, 60)
 			}
 		}
 	}(index)
