@@ -1,6 +1,7 @@
 package elasticollect
 
 import (
+	"bandwidth/redis"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -131,12 +132,10 @@ func scrollParallel(client *elastic.Client, last time.Time, current time.Time) {
 					out = *upstreamResponseLength.Value
 				}
 
-                fmt.Printf("%s, %f, %f, ")
-
-				//redis.Hset(host, "bandwidth_in_current", fmt.Sprintf("%d", int(in)))
-				//redis.Hset(host, "bandwidth_out_current", fmt.Sprintf("%d", int(out)))
-				//redis.Hset(host, "bandwidth_total_current", fmt.Sprintf("%d", int(in+out)))
-                //redis.Expire(host, 60)
+				redis.Hset(host, "bandwidth_in_current", fmt.Sprintf("%d", int(in)))
+				redis.Hset(host, "bandwidth_out_current", fmt.Sprintf("%d", int(out)))
+				redis.Hset(host, "bandwidth_total_current", fmt.Sprintf("%d", int(in+out)))
+				redis.Expire(host, 60)
 			}
 		}
 	}(index)
