@@ -135,7 +135,7 @@ func scrollParallel(client *elastic.Client, last time.Time, current time.Time) {
 				redis.Hset(host, "bandwidth_in_current", fmt.Sprintf("%d", int(in)/60))
 				redis.Hset(host, "bandwidth_out_current", fmt.Sprintf("%d", int(out)/60))
 				redis.Hset(host, "bandwidth_total_current", fmt.Sprintf("%d", int(in+out)/60))
-				redis.Expire(host, 60)
+				redis.Expire(host, 120)
 			}
 		}
 	}(index)
