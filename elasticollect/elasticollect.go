@@ -86,6 +86,7 @@ func pushDataTicker(client *elastic.Client) {
 
 func scrollParallel(client *elastic.Client, last time.Time, current time.Time) {
 	lastTime = current
+	packageIds := viper.GetStringSlice("package_id")
 
 	left := last.Format(timelayout)
 	right := current.Format(timelayout)
@@ -93,50 +94,75 @@ func scrollParallel(client *elastic.Client, last time.Time, current time.Time) {
 	log.WithFields(log.Fields{"start": left, "stop": right, "count": atomic.LoadUint64(&count)}).Info("es search timestamp range")
 
 	index := fmt.Sprintf("nginx-%s", last.Format("2006-01-02"))
-	go func(index string) {
-		// Initialize scroller, Just don't call Do yet.
-		query := elastic.NewBoolQuery().Filter(
-			elastic.NewRangeQuery("Timestamp").Gte(left).Lt(right),
-		)
+	for _, packageID := range packageIds {
+		go func(packageId string, index string) {
+			// Initialize scroller, Just don't call Do yet.
+			query := elastic.NewBoolQuery().Filter(
+				elastic.NewMatchQuery("package_id", packageId),
+				elastic.NewRangeQuery("Timestamp").Gte(left).Lt(right),
+			)
 
-		search := client.Search().Index(index).Query(query).Size(0)
-		aggHTTPHost := elastic.NewTermsAggregation().Field("http_host").Size(10000).OrderByCountDesc()
-		sumRequestLength := elastic.NewSumAggregation().Field("request_length")
-		sumUpstreamResponseLength := elastic.NewSumAggregation().Field("upstream_response_length")
-		aggHTTPHost = aggHTTPHost.SubAggregation("requestLength", sumRequestLength).SubAggregation("upstreamResponseLength", sumUpstreamResponseLength)
-		search = search.Aggregation("agg_httpHost", aggHTTPHost)
+			search := client.Search().Index(index).Query(query).Size(0)
+			aggHTTPHost := elastic.NewTermsAggregation().Field("http_host").Size(10000).OrderByCountDesc()
+			sumRequestLength := elastic.NewSumAggregation().Field("request_length")
+			sumRequestTime := elastic.NewSumAggregation().Field("request_time")
+			sumUpstreamResponseLength := elastic.NewSumAggregation().Field("upstream_response_length")
+			sumUpstreamResponseTime := elastic.NewSumAggregation().Field("upstream_respond_time")
+			aggHTTPHost = aggHTTPHost.SubAggregation("requestLength", sumRequestLength).SubAggregation("upstreamResponseLength", sumUpstreamResponseLength)
+			aggHTTPHost = aggHTTPHost.SubAggregation("requestTime", sumRequestTime).SubAggregation("responseTime", sumUpstreamResponseTime)
+			search = search.Aggregation("agg_httpHost", aggHTTPHost)
 
-		res, err := search.Do(context.Background())
-		if err != nil {
-			log.Error("search elasticsearch failed:" + err.Error())
-			return
-		}
-		if res.Hits.TotalHits > 0 {
-			agg, found := res.Aggregations.Terms("agg_httpHost")
-			if !found {
-				log.Error("not found a terms aggregation called agg_httpHost")
+			res, err := search.Do(context.Background())
+			if err != nil {
+				log.Error("search elasticsearch failed:" + err.Error())
 				return
 			}
-
-			for _, recordBucket := range agg.Buckets {
-				host := recordBucket.Key.(string)
-
-				var in, out float64
-				requestLength, _ := recordBucket.Sum("requestLength")
-				if requestLength != nil {
-					in = *requestLength.Value
+			if res.Hits.TotalHits > 0 {
+				agg, found := res.Aggregations.Terms("agg_httpHost")
+				if !found {
+					log.Error("not found a terms aggregation called agg_httpHost")
+					return
 				}
 
-				upstreamResponseLength, _ := recordBucket.Sum("upstreamResponseLength")
-				if upstreamResponseLength != nil {
-					out = *upstreamResponseLength.Value
-				}
+				for _, recordBucket := range agg.Buckets {
+					host := recordBucket.Key.(string)
 
-				redis.Hset(host, "bandwidth_in_current", fmt.Sprintf("%d", int(in)/60))
-				redis.Hset(host, "bandwidth_out_current", fmt.Sprintf("%d", int(out)/60))
-				redis.Hset(host, "bandwidth_total_current", fmt.Sprintf("%d", int(in+out)/60))
-				redis.Expire(host, 120)
+					var in, out, inTime, outTime float64
+					requestLength, _ := recordBucket.Sum("requestLength")
+					if requestLength != nil {
+						in = *requestLength.Value
+					}
+
+					requestTime, _ := recordBucket.Sum("requestTime")
+					if requestTime != nil {
+						inTime = *requestTime.Value
+					}
+
+					upstreamResponseLength, _ := recordBucket.Sum("upstreamResponseLength")
+					if upstreamResponseLength != nil {
+						out = *upstreamResponseLength.Value
+					}
+
+					responseTime, _ := recordBucket.Sum("responseTime")
+					if responseTime != nil {
+						outTime = *responseTime.Value
+					}
+
+                    if outTime == 0 {
+                        outTime = 60
+                    }
+
+					inBandwidth := int(in / inTime)
+					outBandwidth := int(out / outTime)
+					totalBandwidth := inBandwidth + outBandwidth
+					fmt.Println("host:", host, " total:", totalBandwidth, " in:", inBandwidth, " out:", outBandwidth)
+
+					redis.Hset(host, "bandwidth_in_current", fmt.Sprintf("%d", inBandwidth))
+					redis.Hset(host, "bandwidth_out_current", fmt.Sprintf("%d", outBandwidth))
+					redis.Hset(host, "bandwidth_total_current", fmt.Sprintf("%d", totalBandwidth))
+					redis.Expire(host, 120)
+				}
 			}
-		}
-	}(index)
+		}(packageID, index)
+	}
 }
