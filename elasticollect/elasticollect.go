@@ -24,7 +24,7 @@ var (
 )
 
 func initLog() {
-	filename := viper.GetString("log_file")
+	filename := "/deploy/transfer/transfer_blh/waf_bandwidth.log"
 	logfile, err := os.OpenFile(filename, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0666)
 	if err != nil {
 		log.Fatal(err)
