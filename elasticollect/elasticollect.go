@@ -10,6 +10,7 @@ import (
 	"time"
 
 	//"bandwidth/redis"
+	"github.com/erikdubbelboer/gspt"
 	"github.com/olivere/elastic"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
@@ -48,6 +49,7 @@ func createElasticClient() (*elastic.Client, error) {
 func Run() {
 	initLog()
 	setBeginDateIndex()
+	gspt.SetProcTitle("transfer_blh_bandwidth")
 
 	client, err := createElasticClient()
 	if err != nil {
