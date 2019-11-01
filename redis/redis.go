@@ -148,10 +148,10 @@ func GetClient() *redis.Pool {
 }
 
 func newPool() {
-	redisHost := viper.GetString("redis_data.host")
-	redisPort := viper.GetString("redis_data.port")
-	redisPass := viper.GetString("redis_data.password")
-	redisDB := viper.GetInt("redis_data.database")
+	redisHost := viper.GetString("redis_domain_bandwidth.host")
+	redisPort := viper.GetString("redis_domain_bandwidth.port")
+	redisPass := viper.GetString("redis_domain_bandwidth.password")
+	redisDB := viper.GetInt("redis_domain_bandwidth.database")
 
 	redisPool = redis.Pool{
 		Dial: func() (redis.Conn, error) {

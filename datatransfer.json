@@ -1,6 +1,6 @@
 {
     "package_id": ["2604", "3467"],
-    "redis_data": {
+    "redis_domain_bandwidth": {
         "host": "127.0.0.1",
         "port":6379,
         "password": "foobared",
