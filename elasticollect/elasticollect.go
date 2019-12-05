@@ -69,7 +69,6 @@ func Run() {
 
 func setBeginDateIndex() {
 	startTime := viper.GetString("esorigintime")
-	fmt.Println("startTime: ", startTime)
 	index, err := time.ParseInLocation(timelayout, startTime, time.Local)
 	if err != nil {
 		return
