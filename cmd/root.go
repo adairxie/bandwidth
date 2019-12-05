@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"time"
 	"fmt"
 	"os"
 
@@ -42,7 +43,7 @@ func init() {
 
 	rootCmd.PersistentFlags().StringP("start", "s", "", "time index for fetching from elasticsearch")
 	viper.BindPFlag("esorigintime", rootCmd.PersistentFlags().Lookup("start"))
-	viper.SetDefault("esorigintime", "")
+	viper.SetDefault("esorigintime", time.Now())
 
 	mergeViperServer()
 }
